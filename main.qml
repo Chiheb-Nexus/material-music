@@ -4,6 +4,7 @@ import Material.ListItems 0.1 as ListItem
 import QtMultimedia 5.5
 import Qt.labs.folderlistmodel 2.1
 import "musicId.js" as Global
+import io.thp.pyotherside 1.4
 
 ApplicationWindow {
     Timer {
@@ -86,28 +87,39 @@ ApplicationWindow {
 
     FolderListModel {
         id: folderModel
-        folder: {
-            console.log('current folder is: ', Global.currentFolder)
-            if(Global.currentFolder){
-                return Qt.resolvedUrl(Global.currentFolder)
-            }else{
-                return "/home/nick/Music"
-            }
-        }
+        folder: '/'
         nameFilters: [ "*.mp3", "*.wav" ]
-        showDotAndDotDot: false
+        showDotAndDotDot: true
         showFiles: true
     }
 
     FolderListModel {
         id: albumFolder
-        folder: "/home/nick/Music"
+        folder: "C:\Users\Nick\Music"
     }
 
     id: demo
     title: "Music"
     height: Units.dp(700)
     width: Units.dp(900)
+
+    Python {
+        id: py
+        Component.onCompleted: {
+            addImportPath(Qt.resolvedUrl("."))
+            importModule_sync("hello")
+            py.call("hello.world", [], function ( result ) {
+                demo.title = result
+            })
+            py.call("hello.home", [], function(response){
+                console.log(response)
+                folderModel.folder = response.toString()
+            })
+
+
+        }
+    }
+
 
     // Necessary when loading the window from C++
     visible: true
