@@ -2,6 +2,6 @@
 //change this variable from multiple qml files
 .pragma library
 var songId = 0;
-var currentFolder = '';
+var currentFolder = '/Users/Nick/Downloads';
 var i = 0
 console.log('testing yo');

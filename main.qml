@@ -4,8 +4,41 @@ import Material.ListItems 0.1 as ListItem
 import QtMultimedia 5.5
 import Qt.labs.folderlistmodel 2.1
 import "musicId.js" as Global
+import io.thp.pyotherside 1.4
+import QtQuick.Layouts 1.1
 
 ApplicationWindow {
+    Timer {
+        id: setSeekTimer
+        interval: 100; running: false; repeat: false
+        onTriggered: {
+            seeker.maximumValue = parseInt(playMusic.duration)
+
+            if(playMusic.metaData.albumArtist){
+                var artist = playMusic.metaData.albumArtist + ' - '
+            }else{
+                var artist = 'Unknown Artist'
+            }
+            if(playMusic.metaData.title){
+                var title = playMusic.metaData.title
+            }else{
+                folderModel.folder = Global.currentFolder
+                var title = folderModel.get(Global.songId, 'fileName')
+            }
+            songPlaying.text = artist + ' - ' + title
+        }
+    }
+    Timer {
+        id: durationTimer
+        interval: 100; running: false; repeat: true
+        onTriggered: {
+            if (playMusic.playbackState == 1 && !seeker.pressed){
+            var curtime = playMusic.position
+            seeker.value = curtime
+            }
+
+        }
+    }
     Timer {
         id: myTimer
              interval: 100; running: false; repeat: false
@@ -69,16 +102,39 @@ ApplicationWindow {
 
     Audio {
             id: playMusic
+
             onStatusChanged: {
                             if (status == MediaPlayer.EndOfMedia) {
-                                button.pressed = false
-                                button.text = i18n.tr("Play")
+                                folderModel.folder = Global.currentFolder
+
+                                if(Global.songId + 1 == folderModel.count){
+
+                                    var folder = folderModel.folder
+                                    folderModel.folder = Global.currentFolder
+                                    var currentSong = playMusic.source
+                                    var nextFile = Global.currentFolder + '/' + folderModel.get(0, 'fileName')
+                                    playMusic.source = nextFile
+                                    playMusic.play()
+                                    Global.songId = 1;
+
+                                }else{
+                                    var folder = folderModel.folder
+                                    folderModel.folder = Global.currentFolder
+                                    var currentSong = playMusic.source
+                                    var nextFile = Global.currentFolder + '/' + folderModel.get(Global.songId + 1, 'fileName')
+                                    playMusic.source = nextFile
+                                    playMusic.play()
+                                    Global.songId++;
+                                }
                             }
                         }
             onSourceChanged: {
 
                 //demo.title = playMusic.metaData.title
                 myTimer.start()
+                setSeekTimer.start()
+                durationTimer.start()
+
             }
 
 
@@ -86,14 +142,7 @@ ApplicationWindow {
 
     FolderListModel {
         id: folderModel
-        folder: {
-            console.log('current folder is: ', Global.currentFolder)
-            if(Global.currentFolder){
-                return Qt.resolvedUrl(Global.currentFolder)
-            }else{
-                return "/home/nick/Music"
-            }
-        }
+        folder: '/'
         nameFilters: [ "*.mp3", "*.wav" ]
         showDotAndDotDot: false
         showFiles: true
@@ -101,19 +150,37 @@ ApplicationWindow {
 
     FolderListModel {
         id: albumFolder
-        folder: "/home/nick/Music"
+        folder: "C:\Users\Nick\Music"
     }
 
     id: demo
     title: "Music"
     height: Units.dp(700)
-    width: Units.dp(900)
+    width: Units.dp(1200)
+
+    Python {
+        id: py
+        Component.onCompleted: {
+            addImportPath(Qt.resolvedUrl("."))
+            importModule_sync("hello")
+            py.call("hello.world", [], function ( result ) {
+                demo.title = result
+            })
+            py.call("hello.home", [], function(response){
+                console.log(response)
+                folderModel.folder = response.toString()
+            })
+
+
+        }
+    }
+
 
     // Necessary when loading the window from C++
     visible: true
 
     theme {
-        primaryColor: Palette.colors["blue"]["500"]
+        primaryColor: Palette.colors["deepOrange"]["500"]
         primaryDarkColor: Palette.colors["blue"]["700"]
         accentColor: Palette.colors["red"]["A200"]
         tabHighlightColor: "white"
@@ -122,7 +189,7 @@ ApplicationWindow {
 
 
     property var sidebar: [
-            "Albums", "Artists", "List Items"
+            "All Music", "Albums", "Artists"
     ]
 
     property var basicComponents: [
@@ -281,6 +348,12 @@ ApplicationWindow {
                 iconName: "action/accessibility"
                 name: "Settings"
                 hoverAnimation: true
+                onTriggered: {
+                    console.log("Settings")
+                    setSource("SettingsDemo.qml")
+                    selectedComponent = "Settings"
+                    folderModel.folder = '/home/nick/Music'
+                }
             },
 
             Action {
@@ -298,6 +371,17 @@ ApplicationWindow {
             Action {
                 iconName: "action/account_circle"
                 name: "Accounts"
+            },
+            Action {
+                iconName: "image/color_lens"
+                name: "Colors"
+                onTriggered: {
+                    console.log("Settings")
+                    example.source = Qt.resolvedUrl("SettingsDemo.qml")
+
+                     demo.selectedComponent = "Settings"
+                     folderModel.folder = '/home/nick/Music'
+                } //colorPicker.show()
             }
         ]
 
@@ -475,7 +559,11 @@ ApplicationWindow {
                             return Qt.resolvedUrl("%1Demo.qml").arg(selectedComponent.replace(" ", ""))
                         }
                     }
+
+
                 }
+
+
 
                 ProgressCircle {
                     anchors.centerIn: parent
@@ -487,4 +575,56 @@ ApplicationWindow {
             }
         }
     }
+
+
+    Rectangle {
+        color:'#fff'
+
+        height:Units.dp(100)
+        width:parent.width
+        anchors.bottom: parent.bottom
+        border.width: modelData === "white" ? Units.dp(2) : 0
+        border.color: Theme.alpha("#aaa", 0.26)
+
+        Rectangle {
+            color:'#fff'
+            height:50
+        }
+
+        Label {
+            id: songPlaying
+            text: "Nothing playing"
+            Layout.alignment: Qt.AlignCenter
+            anchors.centerIn: parent
+            height:Units.dp(50)
+            color: index == 0 ? Theme.light.textColor : Theme.dark.textColor
+        }
+
+        Slider {
+            id: seeker
+            Layout.alignment: Qt.AlignCenter
+            width: parent.width
+            anchors.top: Units.dp(50)
+            height:100
+            value: 0
+            darkBackground: index == 1
+            updateValueWhileDragging: true
+            color:theme.primaryColor
+
+            onValueChanged: {
+                if(seeker.pressed){
+                    durationTimer.stop()
+                    playMusic.pause()
+                    var newseek = parseInt(seeker.value * 1)
+                    playMusic.seek(newseek)
+                    playMusic.play()
+                    durationTimer.start()
+                }
+            }
+        }
+
+
+    }
+
+
 }
